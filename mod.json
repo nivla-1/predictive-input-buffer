@@ -1,0 +1,18 @@
+{
+  "geode": "v5.0.0",
+  "gd": { "win": "2.2081" },
+  "id": "nivla-1.predictive-input-buffer",
+  "name": "Predictive Input Buffer",
+  "version": "v1.0.0",
+  "developer": "nivla-1",
+  "description": "Queues gameplay button presses and releases for a configurable number of update ticks.",
+  "settings": {
+    "cycle-buffer": {
+      "name": "Cycle input buffer",
+      "description": "Press this keybind during gameplay to cycle the buffer from 1 to 16 ticks.",
+      "type": "keybind",
+      "default": "Ctrl+Shift+B",
+      "category": "gameplay"
+    }
+  }
+}
