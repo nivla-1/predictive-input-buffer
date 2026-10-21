@@ -14,6 +14,8 @@ jobs:
       - name: Build Windows mod
         id: build
         uses: geode-sdk/build-geode-mod@main
+        with:
+          sdk: latest
 
       - name: Upload compiled package
         uses: actions/upload-artifact@v4
