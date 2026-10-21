@@ -3,9 +3,9 @@
   "gd": { "win": "2.2081" },
   "id": "nivla-1.predictive-input-buffer",
   "name": "Predictive Input Buffer",
-  "version": "v1.0.0",
+  "version": "v1.0.1",
   "developer": "nivla-1",
-  "description": "Queues gameplay button presses and releases for a configurable number of update ticks.",
+  "description": "Prototype buffered input with a configurable 1–16 tick window.",
   "settings": {
     "cycle-buffer": {
       "name": "Cycle input buffer",
