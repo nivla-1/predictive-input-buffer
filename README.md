@@ -1,22 +1,23 @@
 # Predictive Input Buffer
 
-A Windows Geode mod project for Geometry Dash **2.2081**.
+A Windows Geode mod prototype for Geometry Dash **2.2081**.
 
 ## Controls
 
 - Default hotkey: **Ctrl+Shift+B**
-- Press the hotkey during gameplay to cycle the delay: **1 → 2 → ... → 16 → 1 ticks**.
+- Press the hotkey during gameplay to cycle the buffer: **1 → 2 → ... → 16 → 1 ticks**.
 - The selected tick count is saved and restored after restarting the game.
-- You can change the hotkey in Geode's mod settings.
 
-## What it does
+## Prototype behaviour
 
-This first version delays both button-down and button-up events by a selected number of PlayLayer update ticks. Despite the name, it does **not** predict future physics or collision state; it is a configurable input delay queue. Different gameplay modes may feel different, so test carefully in practice mode first.
+This prototype borrows the collision-check approach from an existing public input-buffer project. It buffers button presses, tries to replay a pending press when an activatable effect object is detected, and otherwise replays it when the selected tick window expires. Button releases are passed through immediately.
+
+**Important limitations:** this is not yet a verified predictive/death-prevention buffer. The object activation hook is most relevant to orbs and similar effect objects; it does not reliably predict terrain collisions, and wave-mode early-click recovery is not confirmed. Some input sequences or gameplay modes may behave unexpectedly. Do not treat the feature as working until it builds and is tested in Geometry Dash, preferably in practice mode.
 
 ## Build
 
-This repository includes a GitHub Actions workflow that builds the Windows package. Open the repository's **Actions** tab, select the latest successful **Build Geode mod** run, and download its artifact.
+The GitHub Actions workflow attempts to build a Windows package. Open the repository's **Actions** tab, select the latest successful **Build Geode mod** run, and download its artifact.
 
-## Safety/testing note
+## Development status
 
-This source has not been validated in-game. If the build fails or gameplay inputs behave unexpectedly, do not install/use the package until the issue is fixed. The queue is cleared when leaving a level.
+Prototype code only; not validated in-game. If the build fails, fix the compile errors before installing. The buffer is cleared on level reset, death, or exit.
