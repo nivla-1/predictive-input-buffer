@@ -52,6 +52,7 @@ namespace {
         Notification::create(
             fmt::format("Input buffer: {} tick{}", s_bufferTicks,
                 s_bufferTicks == 1 ? "" : "s"),
+            NotificationIcon::Info,
             1.2f
         )->show();
         log::info("Input buffer set to {} ticks", s_bufferTicks);
