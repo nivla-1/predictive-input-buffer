@@ -97,35 +97,34 @@ namespace {
             pending = {true, down, button, player2, s_tick};
         }
 
-        void collisionCheckObjects(PlayerObject* player, CCArray* objects, float p2, float p3) {
-            // Replaying before normal object checks allows buffered orb/object
-            // activations to be considered during the current collision pass.
-            if (s_inLevel && !s_inEditor && player && objects && objects->count() > 0) {
+        void collisionCheckObjects(PlayerObject* player, gd::vector<GameObject*>* objects, int objectsCount, float dt) {
+            // This hook uses the Geometry Dash 2.2081 signature. The current
+            // prototype only uses the list to notice activatable objects; this
+            // is not a wave collision predictor.
+            if (s_inLevel && !s_inEditor && player && objects && objectsCount > 0) {
                 auto* playLayer = PlayLayer::get();
                 bool player2 = playLayer && player == playLayer->m_player2;
                 auto& pending = pendingFor(player2);
-
                 if (pending.active) {
-                    for (uint32_t i = 0; i < objects->count(); ++i) {
-                        auto* effect = typeinfo_cast<EffectGameObject*>(objects->objectAtIndex(i));
+                    auto count = std::min(objectsCount, static_cast<int>(objects->size()));
+                    for (int i = 0; i < count; ++i) {
+                        auto* effect = typeinfo_cast<EffectGameObject*>((*objects)[i]);
                         if (!effect)
                             continue;
                         if (!GJBaseGameLayer::canBeActivatedByPlayer(player, effect))
                             continue;
-
                         replayPending(this, pending);
                         break;
                     }
                 }
             }
-
-            GJBaseGameLayer::collisionCheckObjects(player, objects, p2, p3);
+            GJBaseGameLayer::collisionCheckObjects(player, objects, objectsCount, dt);
         }
     };
 
     class $modify(BufferedPlayLayer, PlayLayer) {
-        bool init(GJGameLevel* level) {
-            if (!PlayLayer::init(level))
+        bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
+            if (!PlayLayer::init(level, useReplay, dontCreateObjects))
                 return false;
             s_inLevel = true;
             s_inEditor = false;
