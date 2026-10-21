@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -15,7 +15,6 @@ jobs:
         id: build
         uses: geode-sdk/build-geode-mod@main
         with:
-          target: Win64
 
       - name: Upload compiled package
         uses: actions/upload-artifact@v4
