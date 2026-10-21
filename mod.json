@@ -5,16 +5,7 @@
   },
   "id": "nivla-1.predictive-input-buffer",
   "name": "Predictive Input Buffer",
-  "version": "v1.0.2",
+  "version": "v1.0.3",
   "developer": "nivla-1",
-  "description": "Prototype buffered input with a configurable 1–16 tick window.",
-  "settings": {
-    "cycle-buffer": {
-      "name": "Cycle input buffer",
-      "description": "Press this keybind during gameplay to cycle the buffer from 1 to 16 ticks.",
-      "type": "keybind",
-      "default": "Ctrl+Shift+B",
-      "category": "gameplay"
-    }
-  }
+  "description": "Temporary safe pass-through build: inputs are forwarded immediately while wave prediction is unfinished."
 }
