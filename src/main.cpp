@@ -1,31 +1,47 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
+#include <Geode/modify/PlayerObject.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/LevelEditorLayer.hpp>
+#include <Geode/modify/EffectGameObject.hpp>
 
 #include <algorithm>
-#include <deque>
 
 using namespace geode::prelude;
 
 namespace {
-    struct QueuedInput {
-        bool down;
-        int button;
-        bool player2;
-        int ticksLeft;
+    struct PendingInput {
+        bool active = false;
+        bool down = false;
+        int button = 0;
+        bool player2 = false;
+        int startTick = 0;
     };
 
-    std::deque<QueuedInput> s_queue;
+    PendingInput s_player1Pending;
+    PendingInput s_player2Pending;
     bool s_replaying = false;
-    int s_bufferTicks = 1;
+    bool s_inLevel = false;
+    bool s_inEditor = false;
+    int s_tick = 0;
+    int s_bufferTicks = 4;
 
     int clampTicks(int value) {
         return std::max(1, std::min(16, value));
     }
 
+    PendingInput& pendingFor(bool player2) {
+        return player2 ? s_player2Pending : s_player1Pending;
+    }
+
+    void clearPending() {
+        s_player1Pending = {};
+        s_player2Pending = {};
+    }
+
     void loadBufferSetting() {
         s_bufferTicks = clampTicks(
-            static_cast<int>(Mod::get()->getSavedValue<int64_t>("buffer-ticks", 1))
+            static_cast<int>(Mod::get()->getSavedValue<int64_t>("buffer-ticks", 4))
         );
         Mod::get()->setSavedValue<int64_t>("buffer-ticks", s_bufferTicks);
     }
@@ -41,41 +57,140 @@ namespace {
         log::info("Input buffer set to {} ticks", s_bufferTicks);
     }
 
+    void replayPending(GJBaseGameLayer* layer, PendingInput& pending) {
+        if (!layer || !pending.active)
+            return;
+
+        auto event = pending;
+        pending = {};
+
+        s_replaying = true;
+        layer->handleButton(event.down, event.button, event.player2);
+        s_replaying = false;
+    }
+
     class $modify(BufferedGameLayer, GJBaseGameLayer) {
         void handleButton(bool down, int button, bool player2) {
-            if (s_replaying || !PlayLayer::get()) {
+            if (s_replaying || !s_inLevel || s_inEditor || !PlayLayer::get()) {
                 GJBaseGameLayer::handleButton(down, button, player2);
                 return;
             }
-            s_queue.push_back({down, button, player2, s_bufferTicks});
+
+            auto& pending = pendingFor(player2);
+
+            // Never swallow a second event while an input is pending; pass it
+            // through normally so a held button can still be released.
+            if (pending.active) {
+                GJBaseGameLayer::handleButton(down, button, player2);
+                if (!down)
+                    pending = {};
+                return;
+            }
+
+            // Buffer presses only. Releases remain immediate to avoid making
+            // the player's hold duration unexpectedly longer.
+            if (!down) {
+                GJBaseGameLayer::handleButton(down, button, player2);
+                return;
+            }
+
+            pending = {true, down, button, player2, s_tick};
+        }
+
+        void collisionCheckObjects(PlayerObject* player, CCArray* objects, float p2, float p3) {
+            // Replaying before normal object checks allows buffered orb/object
+            // activations to be considered during the current collision pass.
+            if (s_inLevel && !s_inEditor && player && objects && objects->count() > 0) {
+                auto* playLayer = PlayLayer::get();
+                bool player2 = playLayer && player == playLayer->m_player2;
+                auto& pending = pendingFor(player2);
+
+                if (pending.active) {
+                    for (uint32_t i = 0; i < objects->count(); ++i) {
+                        auto* effect = typeinfo_cast<EffectGameObject*>(objects->objectAtIndex(i));
+                        if (!effect)
+                            continue;
+                        if (!GJBaseGameLayer::canBeActivatedByPlayer(player, effect))
+                            continue;
+
+                        replayPending(this, pending);
+                        break;
+                    }
+                }
+            }
+
+            GJBaseGameLayer::collisionCheckObjects(player, objects, p2, p3);
         }
     };
 
     class $modify(BufferedPlayLayer, PlayLayer) {
+        bool init(GJGameLevel* level) {
+            if (!PlayLayer::init(level))
+                return false;
+            s_inLevel = true;
+            s_inEditor = false;
+            s_tick = 0;
+            clearPending();
+            return true;
+        }
+
         void update(float dt) {
             PlayLayer::update(dt);
-            if (this->m_isPaused || s_queue.empty())
+            if (this->m_isPaused || !s_inLevel)
                 return;
 
-            for (auto& event : s_queue) {
-                if (event.ticksLeft > 0)
-                    --event.ticksLeft;
-            }
+            ++s_tick;
+            auto* layer = static_cast<GJBaseGameLayer*>(this);
+            if (s_player1Pending.active && s_tick - s_player1Pending.startTick >= s_bufferTicks)
+                replayPending(layer, s_player1Pending);
+            if (s_player2Pending.active && s_tick - s_player2Pending.startTick >= s_bufferTicks)
+                replayPending(layer, s_player2Pending);
+        }
 
-            while (!s_queue.empty() && s_queue.front().ticksLeft <= 0) {
-                auto event = s_queue.front();
-                s_queue.pop_front();
-
-                s_replaying = true;
-                if (auto layer = GJBaseGameLayer::get())
-                    layer->handleButton(event.down, event.button, event.player2);
-                s_replaying = false;
-            }
+        void destroyPlayer(PlayerObject* player, GameObject* object) {
+            clearPending();
+            PlayLayer::destroyPlayer(player, object);
         }
 
         void onQuit() {
-            s_queue.clear();
+            s_inLevel = false;
+            clearPending();
             PlayLayer::onQuit();
+        }
+
+        void resetLevel() {
+            clearPending();
+            s_tick = 0;
+            PlayLayer::resetLevel();
+        }
+    };
+
+    class $modify(BufferedPlayerObject, PlayerObject) {
+        void incrementJumps() {
+            auto* playLayer = PlayLayer::get();
+            if (playLayer) {
+                bool player2 = this == playLayer->m_player2;
+                pendingFor(player2) = {};
+            }
+            PlayerObject::incrementJumps();
+        }
+
+        void ringJump(RingObject* ring, bool unknown) {
+            auto* playLayer = PlayLayer::get();
+            if (playLayer) {
+                bool player2 = this == playLayer->m_player2;
+                pendingFor(player2) = {};
+            }
+            PlayerObject::ringJump(ring, unknown);
+        }
+    };
+
+    class $modify(BufferedEditorLayer, LevelEditorLayer) {
+        bool init(GJGameLevel* level, bool unknown) {
+            s_inEditor = true;
+            s_inLevel = false;
+            clearPending();
+            return LevelEditorLayer::init(level, unknown);
         }
     };
 }
